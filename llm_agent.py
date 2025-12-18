@@ -1,7 +1,7 @@
 import os
 import json
 import re
-from mistralai.client import MistralClient
+from mistralai import Mistral
 
 # =========================
 # ENV + CLIENT SETUP
@@ -12,7 +12,7 @@ MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 if not MISTRAL_API_KEY:
     raise RuntimeError("MISTRAL_API_KEY is not set")
 
-client = MistralClient(api_key=MISTRAL_API_KEY)
+client = Mistral(api_key=MISTRAL_API_KEY)
 
 # =========================
 # JSON EXTRACTION (ROBUST)

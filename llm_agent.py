@@ -1,12 +1,27 @@
 import requests
 import json
 import re
+# 1️⃣ Imports
+import os
+from mistralai.client import MistralClient   # or whatever lib you use
+
+# 2️⃣ STEP 1: Read API key from environment
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+
+if not MISTRAL_API_KEY:
+    raise RuntimeError("MISTRAL_API_KEY is not set")
+
+# 3️⃣ STEP 2: Create the LLM client (THIS is Step 2)
+client = MistralClient(api_key=MISTRAL_API_KEY)
+
+
+
 
 # =========================
 # CONFIG
 # =========================
 
-OPENROUTER_API_KEY = "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"
+
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL_NAME = "mistralai/mistral-7b-instruct"
@@ -43,6 +58,12 @@ def extract_json(text):
 # =========================
 
 def get_llm_decision(context):
+     response = client.chat(
+        model="mistral-small",
+        messages=[
+            {"role": "system", "content": "You are a smart home assistant"},
+            {"role": "user", "content": context["user_command"]}
+        ]
     """
     context must include:
     - user_command

@@ -5,8 +5,15 @@ from datetime import datetime
 from llm_agent import get_llm_decision
 from pydantic import BaseModel
 
+
 class VoiceInput(BaseModel):
     text: str
+
+class DecideInput(BaseModel):
+    user_command: str
+
+
+
 
 
 app = FastAPI()
@@ -54,34 +61,35 @@ def validate_actions(actions, context):
 
     return validated
 
+def decide_from_command(user_command: str):
+    command = user_command.lower()
+
+    if "hot" in command or "heat" in command:
+        return {"decision": "turn_on_ac"}
+
+    if "cold" in command or "chilly" in command:
+        return {"decision": "turn_off_ac"}
+
+    if "save energy" in command or "reduce power" in command:
+        return {"decision": "increase_ac_temperature"}
+
+    if "turn off ac" in command:
+        return {"decision": "turn_off_ac"}
+
+    if "turn on ac" in command:
+        return {"decision": "turn_on_ac"}
+
+    return {"decision": "no_action"}
+
+
 @app.post("/decide")
-def decide(data: ContextInput):
+async def decide(data: DecideInput):
+    decision = decide_from_command(data.user_command)
+    return decision
 
-    context = {
-        "user_command": data.user_command,
-        "hour_of_day": datetime.now().hour,
-        "ambient_temperature": data.ambient_temperature,
-        "occupancy": data.occupancy,
-        "ac_power": data.ac_power,
-        "set_temperature": data.set_temperature,
-        "total_current_load": data.total_current_load,
-        "cumulative_energy": data.cumulative_energy
-    }
-
-    suggested_actions = get_llm_decision(context)
-    validated_actions = validate_actions(suggested_actions, context)
-
-    return {
-        "actions": validated_actions,
-        "rejected_count": len(suggested_actions) - len(validated_actions)
-    }
 @app.post("/voice-decide")
 async def voice_decide(data: VoiceInput):
-    structured_json = parse_with_llm(data.text)
-    decision = rule_model(structured_json)
+    decision = decide_from_command(data.text)
+    return decision
 
-    return {
-        "parsed_json": structured_json,
-        "decision": decision
-    }
 

@@ -1,11 +1,35 @@
+import json
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime
 from llm_agent import get_llm_decision
-from pydantic import BaseModel
 
 
+# -------------------------
+# Device registry
+# -------------------------
+DEVICES = {
+    "light_1": {
+        "device_id": "light_1",
+        "device_type": "Light",
+        "room": "living_room"
+    },
+    "fan_1": {
+        "device_id": "fan_1",
+        "device_type": "Fan",
+        "room": "bedroom"
+    },
+    "ac_1": {
+        "device_id": "ac_1",
+        "device_type": "AC",
+        "room": "living_room"
+    }
+}
+
+
+# -------------------------
+# Models
+# -------------------------
 class VoiceInput(BaseModel):
     text: str
 
@@ -13,9 +37,9 @@ class DecideInput(BaseModel):
     user_command: str
 
 
-
-
-
+# -------------------------
+# App setup
+# -------------------------
 app = FastAPI()
 
 app.add_middleware(
@@ -27,135 +51,72 @@ app.add_middleware(
 )
 
 
-class ContextInput(BaseModel):
-    user_command: str
-    ambient_temperature: float
-    occupancy: bool
-    ac_power: str
-    set_temperature: float
-    total_current_load: float
-    cumulative_energy: float
-
-def validate_actions(actions, context):
-    validated = []
-    for action in actions:
-        device = action.get("device")
-        act = action.get("action")
-
-        if not context["occupancy"] and act == "turn_on":
-            continue
-
-        if device == "AC" and context["ac_power"] == "off" and act == "turn_off":
-            continue
-
-        if device == "AC" and context["ac_power"] == "off" and act in ["increase_temp", "decrease_temp"]:
-            continue
-
-        if device == "AC":
-            if act == "increase_temp" and context["ambient_temperature"] <= context["set_temperature"]:
-                continue
-            if act == "decrease_temp" and context["ambient_temperature"] >= context["set_temperature"]:
-                continue
-
-        validated.append(action)
-
-    return validated
-
+# -------------------------
+# LLM-based decision
+# -------------------------
 def decide_from_command(user_command: str):
-    command = user_command.lower()
 
-    actions = []
+    prompt = f"""
+You are a smart home command interpreter.
 
-    # 🔥 Temperature-related (AC)
-    if "hot" in command or "warm" in command:
-        actions.append(
-            make_action(
-                device_id="ac_1",
-                action="ON",
-                set_temperature=24
-            )
-        )
+Convert the user's command into structured device actions.
 
-    if "cold" in command or "chilly" in command:
-        actions.append(
-            make_action(
-                device_id="ac_1",
-                action="OFF"
-            )
-        )
+Rules:
+- Return ONLY valid JSON
+- Do NOT explain anything
+- Do NOT invent devices
+- Use ONLY these devices:
 
-    if "save energy" in command or "reduce power" in command:
-        actions.append(
-            make_action(
-                device_id="ac_1",
-                action="INCREASE_TEMPERATURE",
-                delta=2
-            )
-        )
+{json.dumps(DEVICES, indent=2)}
 
-    # 💡 Lights
-    if "turn on light" in command or "lights on" in command:
-        actions.append(
-            make_action(
-                device_id="light_1",
-                action="ON"
-            )
-        )
+Allowed actions:
+- ON
+- OFF
+- SET_TEMPERATURE
+- INCREASE_TEMPERATURE
+- DECREASE_TEMPERATURE
+- SET_FAN_SPEED
 
-    if "turn off light" in command or "lights off" in command:
-        actions.append(
-            make_action(
-                device_id="light_1",
-                action="OFF"
-            )
-        )
+User command:
+"{user_command}"
 
-    # 🌀 Fan
-    if "turn on fan" in command:
-        actions.append(
-            make_action(
-                device_id="fan_1",
-                action="ON",
-                speed=2
-            )
-        )
+Output format:
+{{
+  "actions": [
+    {{
+      "device_id": "ac_1",
+      "device_type": "AC",
+      "room": "living_room",
+      "action": "ON",
+      "value": null
+    }}
+  ]
+}}
 
-    if "turn off fan" in command:
-        actions.append(
-            make_action(
-                device_id="fan_1",
-                action="OFF"
-            )
-        )
+If no action is required, return:
+{{ "actions": [] }}
+"""
 
-    if not actions:
-        return {
-            "actions": [],
-            "message": "No matching action"
-        }
+    actions = get_llm_decision(prompt)
 
-    return {
-        "actions": actions
-    }
+    # Hard safety check
+    validated = []
+    for action in actions.get("actions", []):
+        device_id = action.get("device_id")
+        if device_id in DEVICES:
+            validated.append(action)
 
-def make_action(device_id, action, **kwargs):
-    payload = {
-        "device_id": device_id,
-        "action": action
-    }
-    payload.update(kwargs)
-    return payload
+    return {"actions": validated}
 
 
-
+# -------------------------
+# Endpoints
+# -------------------------
 @app.post("/decide")
 async def decide(data: DecideInput):
-    decision = decide_from_command(data.user_command)
-    return decision
+    return decide_from_command(data.user_command)
+
 
 @app.post("/voice-decide")
 async def voice_decide(data: VoiceInput):
-    decision = decide_from_command(data.text)
-    return decision
-
-
+    return decide_from_command(data.text)

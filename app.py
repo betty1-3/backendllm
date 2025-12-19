@@ -71,7 +71,7 @@ def decide_from_command(user_command: str):
         actions.append(
             make_action(
                 device_id="ac_1",
-                action="TURN_ON",
+                action="ON",
                 set_temperature=24
             )
         )
@@ -80,7 +80,7 @@ def decide_from_command(user_command: str):
         actions.append(
             make_action(
                 device_id="ac_1",
-                action="TURN_OFF"
+                action="OFF"
             )
         )
 
@@ -98,7 +98,7 @@ def decide_from_command(user_command: str):
         actions.append(
             make_action(
                 device_id="light_1",
-                action="TURN_ON"
+                action="ON"
             )
         )
 
@@ -106,7 +106,7 @@ def decide_from_command(user_command: str):
         actions.append(
             make_action(
                 device_id="light_1",
-                action="TURN_OFF"
+                action="OFF"
             )
         )
 
@@ -115,7 +115,7 @@ def decide_from_command(user_command: str):
         actions.append(
             make_action(
                 device_id="fan_1",
-                action="TURN_ON",
+                action="ON",
                 speed=2
             )
         )
@@ -124,7 +124,7 @@ def decide_from_command(user_command: str):
         actions.append(
             make_action(
                 device_id="fan_1",
-                action="TURN_OFF"
+                action="OFF"
             )
         )
 

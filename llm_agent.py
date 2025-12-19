@@ -83,5 +83,5 @@ response = client.chat.completions.create(
 
 
 
-content = response.choices[0].message.content
-return extract_json(content)
+    content = response.choices[0].message.content
+    return extract_json(content)

@@ -65,12 +65,13 @@ Return your answer as a JSON array only.
 If no action is needed, return [].
 """
 
-    response = client.chat(
-        model="mistral-small",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
+    response = client.chat.complete(
+    model="mistral-small",
+    messages=[
+        {"role": "user", "content": prompt}
+    ]
+)
+
 
     content = response.choices[0].message.content
     return extract_json(content)

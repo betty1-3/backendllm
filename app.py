@@ -1,46 +1,21 @@
-import json
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from datetime import datetime
 from llm_agent import get_llm_decision
+from pydantic import BaseModel
 
 
-# =====================================================
-# DEVICE REGISTRY (SOURCE OF TRUTH)
-# =====================================================
-DEVICES = {
-    "light_1": {
-        "device_id": "light_1",
-        "device_type": "Light",
-        "room": "living_room"
-    },
-    "fan_1": {
-        "device_id": "fan_1",
-        "device_type": "Fan",
-        "room": "bedroom"
-    },
-    "ac_1": {
-        "device_id": "ac_1",
-        "device_type": "AC",
-        "room": "living_room"
-    }
-}
-
-
-# =====================================================
-# INPUT MODELS
-# =====================================================
 class VoiceInput(BaseModel):
     text: str
-
 
 class DecideInput(BaseModel):
     user_command: str
 
 
-# =====================================================
-# FASTAPI APP
-# =====================================================
+
+
+
 app = FastAPI()
 
 app.add_middleware(
@@ -52,88 +27,67 @@ app.add_middleware(
 )
 
 
-# =====================================================
-# CORE LLM DECISION FUNCTION
-# =====================================================
-def decide_from_command(user_command: str) -> dict:
-    """
-    INPUT  : user_command (string)
-    OUTPUT : { "actions": [...] }
-    GUARANTEE: Never raises TypeError
-    """
+class ContextInput(BaseModel):
+    user_command: str
+    ambient_temperature: float
+    occupancy: bool
+    ac_power: str
+    set_temperature: float
+    total_current_load: float
+    cumulative_energy: float
 
-    prompt = f"""
-You are a smart home command interpreter.
-
-Your task is to convert the user's command into structured device actions.
-
-STRICT RULES:
-- Return ONLY valid JSON
-- Do NOT explain anything
-- Do NOT invent devices
-- Use ONLY the devices listed below
-
-DEVICES:
-{json.dumps(DEVICES, indent=2)}
-
-ALLOWED ACTIONS:
-- ON
-- OFF
-- SET_TEMPERATURE
-- INCREASE_TEMPERATURE
-- DECREASE_TEMPERATURE
-- SET_FAN_SPEED
-
-USER COMMAND:
-"{user_command}"
-
-OUTPUT FORMAT:
-{{
-  "actions": [
-    {{
-      "device_id": "fan_1",
-      "device_type": "Fan",
-      "room": "bedroom",
-      "action": "OFF",
-      "value": null
-    }}
-  ]
-}}
-
-If no action is required, return:
-{{ "actions": [] }}
-"""
-
-    # 🔒 LLM CALL (string in → dict out)
-    llm_result = get_llm_decision(prompt)
-
-    # 🔒 HARD TYPE SAFETY (NO TYPEERROR POSSIBLE)
-    actions = llm_result.get("actions", [])
-    if not isinstance(actions, list):
-        return {"actions": []}
-
-    validated_actions = []
-
+def validate_actions(actions, context):
+    validated = []
     for action in actions:
-        if not isinstance(action, dict):
+        device = action.get("device")
+        act = action.get("action")
+
+        if not context["occupancy"] and act == "turn_on":
             continue
 
-        device_id = action.get("device_id")
+        if device == "AC" and context["ac_power"] == "off" and act == "turn_off":
+            continue
 
-        if device_id in DEVICES:
-            validated_actions.append(action)
+        if device == "AC" and context["ac_power"] == "off" and act in ["increase_temp", "decrease_temp"]:
+            continue
 
-    return {"actions": validated_actions}
+        if device == "AC":
+            if act == "increase_temp" and context["ambient_temperature"] <= context["set_temperature"]:
+                continue
+            if act == "decrease_temp" and context["ambient_temperature"] >= context["set_temperature"]:
+                continue
+
+        validated.append(action)
+
+    return validated
+
+def decide_from_command(user_command: str):
+    command = user_command.lower()
+
+    if "hot" in command or "heat" in command:
+        return {"decision": "turn_on_ac"}
+
+    if "cold" in command or "chilly" in command:
+        return {"decision": "turn_off_ac"}
+
+    if "save energy" in command or "reduce power" in command:
+        return {"decision": "increase_ac_temperature"}
+
+    if "turn off ac" in command:
+        return {"decision": "turn_off_ac"}
+
+    if "turn on ac" in command:
+        return {"decision": "turn_on_ac"}
+
+    return {"decision": "no_action"}
 
 
-# =====================================================
-# API ENDPOINTS
-# =====================================================
 @app.post("/decide")
 async def decide(data: DecideInput):
-    return decide_from_command(data.user_command)
-
+    decision = decide_from_command(data.user_command)
+    return decision
 
 @app.post("/voice-decide")
 async def voice_decide(data: VoiceInput):
-    return decide_from_command(data.text)
+    decision = decide_from_command(data.text)
+    return decision

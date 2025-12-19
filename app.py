@@ -64,22 +64,88 @@ def validate_actions(actions, context):
 def decide_from_command(user_command: str):
     command = user_command.lower()
 
-    if "hot" in command or "heat" in command:
-        return {"decision": "turn_on_ac"}
+    actions = []
+
+    # 🔥 Temperature-related (AC)
+    if "hot" in command or "warm" in command:
+        actions.append(
+            make_action(
+                device_id="ac_1",
+                action="TURN_ON",
+                set_temperature=24
+            )
+        )
 
     if "cold" in command or "chilly" in command:
-        return {"decision": "turn_off_ac"}
+        actions.append(
+            make_action(
+                device_id="ac_1",
+                action="TURN_OFF"
+            )
+        )
 
     if "save energy" in command or "reduce power" in command:
-        return {"decision": "increase_ac_temperature"}
+        actions.append(
+            make_action(
+                device_id="ac_1",
+                action="INCREASE_TEMPERATURE",
+                delta=2
+            )
+        )
 
-    if "turn off ac" in command:
-        return {"decision": "turn_off_ac"}
+    # 💡 Lights
+    if "turn on light" in command or "lights on" in command:
+        actions.append(
+            make_action(
+                device_id="light_1",
+                action="TURN_ON"
+            )
+        )
 
-    if "turn on ac" in command:
-        return {"decision": "turn_on_ac"}
+    if "turn off light" in command or "lights off" in command:
+        actions.append(
+            make_action(
+                device_id="light_1",
+                action="TURN_OFF"
+            )
+        )
 
-    return {"decision": "no_action"}
+    # 🌀 Fan
+    if "turn on fan" in command:
+        actions.append(
+            make_action(
+                device_id="fan_1",
+                action="TURN_ON",
+                speed=2
+            )
+        )
+
+    if "turn off fan" in command:
+        actions.append(
+            make_action(
+                device_id="fan_1",
+                action="TURN_OFF"
+            )
+        )
+
+    if not actions:
+        return {
+            "actions": [],
+            "message": "No matching action"
+        }
+
+    return {
+        "actions": actions
+    }
+
+def make_action(device_id, action, **kwargs):
+    payload = {
+        "device_id": device_id,
+        "action": action
+    }
+    payload.update(kwargs)
+    return payload
+
 
 
 @app.post("/decide")

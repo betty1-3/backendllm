@@ -1,18 +1,25 @@
+from openai import OpenAI
 import os
 import json
 import re
-from mistralai import Mistral
+
+
 
 # =========================
 # ENV + CLIENT SETUP
 # =========================
 
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-if not MISTRAL_API_KEY:
-    raise RuntimeError("MISTRAL_API_KEY is not set")
+if not OPENROUTER_API_KEY:
+    raise RuntimeError("OPENROUTER_API_KEY is not set")
 
-client = Mistral(api_key=MISTRAL_API_KEY)
+client = OpenAI(
+    api_key=OPENROUTER_API_KEY,
+    base_url="https://openrouter.ai/api/v1"
+)
+
+
 
 # =========================
 # JSON EXTRACTION (ROBUST)
@@ -65,13 +72,16 @@ Return your answer as a JSON array only.
 If no action is needed, return [].
 """
 
-    response = client.chat.complete(
-    model="mistral-small",
+response = client.chat.completions.create(
+    model="mistralai/mistral-7b-instruct",
     messages=[
+        {"role": "system", "content": "Return only valid JSON."},
         {"role": "user", "content": prompt}
-    ]
+    ],
+    temperature=0
 )
 
 
-    content = response.choices[0].message.content
-    return extract_json(content)
+
+content = response.choices[0].message.content
+return extract_json(content)

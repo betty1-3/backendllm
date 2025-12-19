@@ -36,6 +36,11 @@ class DecideInput(BaseModel):
     user_command: str
 
 
+# 🔹 NEW: model-to-model input
+class ActionInput(BaseModel):
+    command: str
+
+
 # =========================
 # APP SETUP
 # =========================
@@ -117,3 +122,13 @@ async def decide(data: DecideInput):
 @app.post("/voice-decide")
 async def voice_decide(data: VoiceInput):
     return decide_from_command(data.text)
+
+
+# 🔹 NEW: endpoint for another model / service
+@app.post("/actions")
+async def actions_endpoint(data: ActionInput):
+    """
+    This endpoint is meant for downstream models.
+    It receives a command string and returns structured JSON actions.
+    """
+    return decide_from_command(data.command)

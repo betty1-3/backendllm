@@ -1,21 +1,44 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime
-from llm_agent import get_llm_decision
-from pydantic import BaseModel
 
 
+# =========================
+# DEVICE REGISTRY
+# =========================
+DEVICES = {
+    "light_1": {
+        "device_id": "light_1",
+        "device_type": "Light",
+        "room": "living_room"
+    },
+    "fan_1": {
+        "device_id": "fan_1",
+        "device_type": "Fan",
+        "room": "bedroom"
+    },
+    "ac_1": {
+        "device_id": "ac_1",
+        "device_type": "AC",
+        "room": "living_room"
+    }
+}
+
+
+# =========================
+# INPUT MODELS
+# =========================
 class VoiceInput(BaseModel):
     text: str
+
 
 class DecideInput(BaseModel):
     user_command: str
 
 
-
-
-
+# =========================
+# APP SETUP
+# =========================
 app = FastAPI()
 
 app.add_middleware(
@@ -27,67 +50,70 @@ app.add_middleware(
 )
 
 
-class ContextInput(BaseModel):
-    user_command: str
-    ambient_temperature: float
-    occupancy: bool
-    ac_power: str
-    set_temperature: float
-    total_current_load: float
-    cumulative_energy: float
+# =========================
+# HELPER
+# =========================
+def make_action(device_key, action, value=None):
+    device = DEVICES[device_key]
+    return {
+        "device_id": device["device_id"],
+        "device_type": device["device_type"],
+        "room": device["room"],
+        "action": action,
+        "value": value
+    }
 
-def validate_actions(actions, context):
-    validated = []
-    for action in actions:
-        device = action.get("device")
-        act = action.get("action")
 
-        if not context["occupancy"] and act == "turn_on":
-            continue
-
-        if device == "AC" and context["ac_power"] == "off" and act == "turn_off":
-            continue
-
-        if device == "AC" and context["ac_power"] == "off" and act in ["increase_temp", "decrease_temp"]:
-            continue
-
-        if device == "AC":
-            if act == "increase_temp" and context["ambient_temperature"] <= context["set_temperature"]:
-                continue
-            if act == "decrease_temp" and context["ambient_temperature"] >= context["set_temperature"]:
-                continue
-
-        validated.append(action)
-
-    return validated
-
+# =========================
+# NLP DECISION LOGIC
+# =========================
 def decide_from_command(user_command: str):
     command = user_command.lower()
+    actions = []
 
-    if "hot" in command or "heat" in command:
-        return {"decision": "turn_on_ac"}
+    # 🔥 AC logic
+    if "hot" in command or "warm" in command:
+        actions.append(make_action("ac_1", "ON"))
 
     if "cold" in command or "chilly" in command:
-        return {"decision": "turn_off_ac"}
+        actions.append(make_action("ac_1", "OFF"))
 
     if "save energy" in command or "reduce power" in command:
-        return {"decision": "increase_ac_temperature"}
+        actions.append(make_action("ac_1", "INCREASE_TEMPERATURE", value=2))
 
-    if "turn off ac" in command:
-        return {"decision": "turn_off_ac"}
+    # 🌀 Fan logic
+    if "fan" in command and ("on" in command or "start" in command):
+        actions.append(make_action("fan_1", "ON"))
 
-    if "turn on ac" in command:
-        return {"decision": "turn_on_ac"}
+    if "fan" in command and ("off" in command or "stop" in command):
+        actions.append(make_action("fan_1", "OFF"))
 
-    return {"decision": "no_action"}
+    # 💡 Light logic
+    if "light" in command and ("on" in command or "switch on" in command):
+        actions.append(make_action("light_1", "ON"))
+
+    if "light" in command and ("off" in command or "switch off" in command):
+        actions.append(make_action("light_1", "OFF"))
+
+    if not actions:
+        return {
+            "actions": [],
+            "message": "No matching action"
+        }
+
+    return {
+        "actions": actions
+    }
 
 
+# =========================
+# ENDPOINTS
+# =========================
 @app.post("/decide")
 async def decide(data: DecideInput):
-    decision = decide_from_command(data.user_command)
-    return decision
+    return decide_from_command(data.user_command)
+
 
 @app.post("/voice-decide")
 async def voice_decide(data: VoiceInput):
-    decision = decide_from_command(data.text)
-    return decision
+    return decide_from_command(data.text)

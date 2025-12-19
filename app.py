@@ -3,6 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 from llm_agent import get_llm_decision
+from pydantic import BaseModel
+
+class VoiceInput(BaseModel):
+    text: str
+
 
 app = FastAPI()
 
@@ -70,3 +75,13 @@ def decide(data: ContextInput):
         "actions": validated_actions,
         "rejected_count": len(suggested_actions) - len(validated_actions)
     }
+@app.post("/voice-decide")
+async def voice_decide(data: VoiceInput):
+    structured_json = parse_with_llm(data.text)
+    decision = rule_model(structured_json)
+
+    return {
+        "parsed_json": structured_json,
+        "decision": decision
+    }
+
